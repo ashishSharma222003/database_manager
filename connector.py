@@ -18,9 +18,9 @@ class DatabaseConnector:
     def _build_db_url(self) -> str:
         """Constructs a DB URL based on type."""
         if self.db_type == "postgresql":
-            return f"postgresql+psycopg2://{self.user}:{self.password}@{self.host}:{self.port}/{self.db_name}"
+            return f"postgresql+psycopg2://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
         elif self.db_type == "mysql":
-            return f"mysql+mysqlconnector://{self.user}:{self.password}@{self.host}:{self.port}/{self.db_name}"
+            return f"mysql+mysqlconnector://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
         elif self.db_type == "sqlite":
             return f"sqlite:///{self.db_name}"
         else:
@@ -72,6 +72,31 @@ class DatabaseConnector:
             }
 
         return schema
+    def summarize_schema(self, full_schema: dict):
+        """
+        Convert detailed schema from get_schema() to a compact LLM-friendly format, including column types.
+        """
+        summarized = {}
+
+        for table, details in full_schema.items():
+            # Extract column names and types
+            columns = [
+                {"name": list(col.keys())[0], "type": list(col.values())[0]} 
+                for col in details.get("columns", [])
+            ]
+
+            # Build relationships in a compact string format
+            relationships = []
+            for fk in details.get("foreign_keys", []):
+                for col, ref_col in zip(fk["column"], fk["references_columns"]):
+                    relationships.append(f"{table}.{col} -> {fk['references_table']}.{ref_col}")
+
+            summarized[table] = {
+                "columns": columns,
+                "relationships": relationships
+            }
+
+        return summarized
     def execute_query(self, query: str):
         """Executes a SQL query and returns the results.
         
@@ -107,3 +132,4 @@ class DatabaseConnector:
             print("Engine disposed successfully.")
         except Exception as e:
             print(f"Error disposing the engine: {e}")
+
